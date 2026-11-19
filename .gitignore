@@ -20,9 +20,6 @@ traductor.log
 *.sublime-project
 *.sublime-workspace
 
-# Archivo de configuración local del usuario
-config.json
-
 # Paquetes y modelos descargados temporalmente
 models/
 *.bin

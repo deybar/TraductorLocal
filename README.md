@@ -122,17 +122,11 @@ Simplemente haz doble clic en cualquiera de los lanzadores dentro de la carpeta 
 
 ---
 
-## 📋 Hoja de Ruta (Roadmap)
+## 📋 Hoja de Ruta y Documentación
 
-- [x] Detección universal de selección de texto con el ratón.
-- [x] Motor de traducción neuronal 100% local (sin internet).
-- [x] Botón flotante discreto y popup con auto-ajuste de tamaño.
-- [x] Soporte para arrastrar la ventana y fijar su posición.
-- [x] 5 temas visuales y control de opacidad en vivo.
-- [x] Lanzador silencioso sin consola CMD y protección contra instancias múltiples.
-- [ ] Soporte para atajos de teclado globales opcionales (ej. `Ctrl+F1` o doble Ctrl).
-- [ ] Descarga modular de pares de idiomas adicionales (Francés, Alemán, Portugués, etc.).
-- [ ] Historial local de traducciones recientes con opción de borrado seguro.
+- **[Documentación Técnica Completa](doc/README.md):** Arquitectura, flujo de procesamiento, protocolo IPC y guía de uso.
+- **[Bitácora de Desarrollo y Roadmap](BITACORA.md):** Diagnóstico técnico, deudas priorizadas y registro de versiones.
+- **[Integración en la Macro Suite de IA](doc/04_integracion_macro_sistema.md):** Relación con el Lanzador y las herramientas hermanas de audio y reuniones.
 
 ---
 
