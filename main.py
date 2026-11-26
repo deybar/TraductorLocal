@@ -48,7 +48,7 @@ from theme_config import THEMES, load_config, save_config, get_theme_data
 
 SOCKET_NAME = "TraductorLocal_SingleInstance_2026"
 
-def ensure_single_instance(app, on_activate_cb) -> bool:
+def ensure_single_instance(app, on_activate_cb, on_quit_cb=None) -> bool:
     """
     Verifica si ya existe otra instancia del programa en ejecución.
     - Si existe: le envía la señal 'ACTIVATE' para traer la ventana existente al frente y retorna False.
@@ -56,7 +56,7 @@ def ensure_single_instance(app, on_activate_cb) -> bool:
     """
     test_socket = QLocalSocket()
     test_socket.connectToServer(SOCKET_NAME)
-    if test_socket.waitForConnected(400):
+    if test_socket.waitForConnected(800):
         logger.info("Ya existe otra instancia en ejecución. Enviando comando de activación...")
         test_socket.write(b"ACTIVATE")
         test_socket.waitForBytesWritten(400)
@@ -70,9 +70,15 @@ def ensure_single_instance(app, on_activate_cb) -> bool:
         def handle_connection():
             client = server.nextPendingConnection()
             if client:
-                if client.waitForReadyRead(300):
+                if client.bytesAvailable() > 0 or client.waitForReadyRead(300):
                     data = client.readAll().data().decode("utf-8", errors="ignore")
-                    if "ACTIVATE" in data:
+                    if "QUIT" in data:
+                        logger.info("Recibida orden de cierre remoto (QUIT).")
+                        if on_quit_cb:
+                            on_quit_cb()
+                        else:
+                            app.quit()
+                    elif "ACTIVATE" in data:
                         logger.info("Recibida petición de activación desde otra instancia. Mostrando ventana...")
                         on_activate_cb()
                 client.disconnectFromServer()
@@ -530,8 +536,14 @@ if __name__ == "__main__":
         if manager:
             manager.activate_main_window()
 
+    def on_quit():
+        if manager:
+            manager._quit()
+        else:
+            app.quit()
+
     # Protección de Instancia Única
-    if not ensure_single_instance(app, on_activate):
+    if not ensure_single_instance(app, on_activate, on_quit_cb=on_quit):
         logger.info("Ya había una instancia corriendo. Esta segunda instancia se cierra de inmediato.")
         sys.exit(0)
 

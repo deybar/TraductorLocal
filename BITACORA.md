@@ -63,6 +63,17 @@ flowchart LR
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y versionado semántico.
 
+### [1.2.0] - 2026-11-20
+#### Mejorado
+- **Arranque Directo CTranslate2 + SentencePiece:** Carga directa de modelos desde disco sin importar `torch` o `stanza` durante la inferencia, reduciendo significativamente el consumo de RAM y tiempo de inicio.
+- **Traducción por Lotes (`translate_batch`):** Conservación fiel de párrafos y saltos de línea mediante `translate_batch(batch_tokens, beam_size=2)` en una sola pasada.
+- **Captura de Ratón Blindada (`mouse_monitor.py`):** Bloqueo de concurrencia (`_capture_lock`), exclusión automática de arrastres sobre barra de título o scrollbar (`_is_window_chrome_drag`), espera reactiva mediante `GetClipboardSequenceNumber` y restauración automática del portapapeles previo del usuario.
+- **Cierre Remoto Limpio (`QUIT`):** Soporte en `QLocalServer` para apagado ordenado desde el widget lanzador.
+
+#### Corregido
+- **Corrupción Numérica en Modelo `translate-es_en-1_9`:** Se comprobó que `compute_type="int8"` producía salidas repetitivas corruptas al traducir Español ➔ Inglés en CPU. Corregido fijando `compute_type="default"`.
+- **Dependencias Unificadas:** Verificación e instalación de `pynput` y `pyperclip` en `.audio_translator_venv`.
+
 ### [1.1.0] - 2026-11-19
 #### Añadido
 - **Alineación con la Macro Suite de IA:** Normalización de la rama principal a `main`.

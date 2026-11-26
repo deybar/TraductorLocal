@@ -11,7 +11,10 @@ echo   TRADUCTOR LOCAL OFFLINE - MODO CONSOLA / DEBUG
 echo =======================================================
 echo.
 
-set "PYTHON_EXE=C:\Users\%USERNAME%\.local_translator_venv\Scripts\python.exe"
+set "PYTHON_EXE=C:\Users\%USERNAME%\.audio_translator_venv\Scripts\python.exe"
+if not exist "%PYTHON_EXE%" (
+    set "PYTHON_EXE=C:\Users\%USERNAME%\.local_translator_venv\Scripts\python.exe"
+)
 if not exist "%PYTHON_EXE%" (
     if exist ".venv\Scripts\python.exe" set "PYTHON_EXE=.venv\Scripts\python.exe"
 )

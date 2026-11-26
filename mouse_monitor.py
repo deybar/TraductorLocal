@@ -1,12 +1,14 @@
 """
 Monitor Global de Mouse y Captura de Texto Seleccionado para Windows.
 Detecta selecciones con el ratón (arrastrar o doble clic) en cualquier ventana
-y captura el texto de forma limpia mediante la API nativa de Windows.
+y captura el texto de forma limpia mediante la API nativa de Windows,
+restaurando el portapapeles previo del usuario y evitando disparos concurrentes.
 """
 
 import time
 import math
 import ctypes
+import ctypes.wintypes
 import threading
 import logging
 from typing import Callable, Optional
@@ -21,6 +23,7 @@ VK_C = 0x43
 KEYEVENTF_KEYUP = 0x0002
 
 user32 = ctypes.windll.user32
+
 
 def simulate_ctrl_c():
     """Envía Ctrl+C de forma nativa a la ventana activa con códigos de escaneo de hardware."""
@@ -42,6 +45,26 @@ def simulate_ctrl_c():
     # 4. Soltar Ctrl
     user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
 
+
+def _is_window_chrome_drag(x: int, y: int) -> bool:
+    """Detecta si el punto cae en la barra de título o scrollbar derecho de la ventana activa."""
+    try:
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return False
+        rect = ctypes.wintypes.RECT()
+        if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            return False
+        if rect.left <= x <= rect.right and rect.top <= y <= rect.bottom:
+            if (y - rect.top) < 34:
+                return True
+            if (rect.right - x) < 24:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 class SelectionMonitor:
     def __init__(
         self,
@@ -57,6 +80,7 @@ class SelectionMonitor:
 
         self.enabled = True
         self._listener: Optional[mouse.Listener] = None
+        self._capture_lock = threading.Lock()
 
         self._press_x = 0
         self._press_y = 0
@@ -128,53 +152,72 @@ class SelectionMonitor:
                 ).start()
 
     def _capture_selection_worker(self, x: int, y: int):
-        # 1. Espera pequeña para que la aplicación actualice el resaltado de selección
-        time.sleep(self.settle_delay_sec)
+        if not self._capture_lock.acquire(blocking=False):
+            return
 
-        # 2. Número de secuencia del portapapeles de Windows antes de copiar
-        seq_before = user32.GetClipboardSequenceNumber()
-
-        # Guardar portapapeles previo
-        prev_clipboard = ""
         try:
-            prev_clipboard = pyperclip.paste()
-        except Exception:
-            pass
+            # Filtrar arrastres sobre barra de título o scrollbar
+            if _is_window_chrome_drag(x, y):
+                logger.debug("Gesto ignorado por estar en barra de título o scrollbar.")
+                return
 
-        # 3. Enviar Ctrl+C
-        simulate_ctrl_c()
+            # 1. Espera pequeña para que la aplicación actualice el resaltado de selección
+            time.sleep(self.settle_delay_sec)
 
-        # 4. Esperar de forma reactiva hasta 250ms a que la app actualice el portapapeles
-        clipboard_changed = False
-        for _ in range(25):
-            time.sleep(0.01)
-            if user32.GetClipboardSequenceNumber() != seq_before:
-                clipboard_changed = True
-                break
+            # 2. Número de secuencia del portapapeles de Windows antes de copiar
+            seq_before = user32.GetClipboardSequenceNumber()
 
-        # 5. Si no cambió el número de secuencia, esperar un breve momento extra
-        if not clipboard_changed:
-            time.sleep(0.06)
-
-        # 6. Leer el contenido del portapapeles
-        new_text = ""
-        for _ in range(5):
+            # Guardar portapapeles previo
+            prev_clipboard = ""
             try:
-                new_text = pyperclip.paste()
-                break
+                prev_clipboard = pyperclip.paste()
             except Exception:
+                pass
+
+            # 3. Enviar Ctrl+C
+            simulate_ctrl_c()
+
+            # 4. Esperar de forma reactiva hasta 250ms a que la app actualice el portapapeles
+            clipboard_changed = False
+            for _ in range(25):
+                time.sleep(0.01)
+                if user32.GetClipboardSequenceNumber() != seq_before:
+                    clipboard_changed = True
+                    break
+
+            # 5. Si no cambió el número de secuencia, esperar un breve momento extra
+            if not clipboard_changed:
+                time.sleep(0.06)
+
+            # 6. Leer el contenido del portapapeles
+            new_text = ""
+            for _ in range(5):
+                try:
+                    new_text = pyperclip.paste()
+                    break
+                except Exception:
+                    time.sleep(0.02)
+
+            # 7. Restaurar el portapapeles original del usuario si cambió
+            if clipboard_changed and prev_clipboard:
                 time.sleep(0.02)
+                try:
+                    pyperclip.copy(prev_clipboard)
+                except Exception:
+                    pass
 
-        if not new_text or not new_text.strip():
-            logger.debug("No se capturó texto o la selección estaba vacía.")
-            return
+            if not new_text or not new_text.strip():
+                logger.debug("No se capturó texto o la selección estaba vacía.")
+                return
 
-        clean_text = new_text.strip()
+            clean_text = new_text.strip()
 
-        # Si el texto es idéntico al previo y no cambió la secuencia, no hubo nueva selección
-        if (clean_text == prev_clipboard.strip()) and not clipboard_changed:
-            logger.debug("El texto es idéntico al que ya estaba copiado y no hubo copia nueva.")
-            return
+            # Si el texto es idéntico al previo y no cambió la secuencia, no hubo nueva selección
+            if (clean_text == prev_clipboard.strip()) and not clipboard_changed:
+                logger.debug("El texto es idéntico al que ya estaba copiado y no hubo copia nueva.")
+                return
 
-        logger.info(f"¡Texto seleccionado capturado con éxito! ({len(clean_text)} caracteres): {repr(clean_text[:40])}...")
-        self.on_selection_detected(clean_text, x, y)
+            logger.info(f"¡Texto seleccionado capturado con éxito! ({len(clean_text)} caracteres): {repr(clean_text[:40])}...")
+            self.on_selection_detected(clean_text, x, y)
+        finally:
+            self._capture_lock.release()
